@@ -1,5 +1,8 @@
 (ns sicp-clojure.ch1
-  (:require [clojure.math.numeric-tower :as math]))
+  (:require [clojure.math.numeric-tower :as math]
+            [clj-time.core :as t]
+            [clj-time.coerce :as c]
+            ))
 
 
 ;;; 1.2
@@ -65,7 +68,7 @@
               0.001))]
      (if (good-enough? guess next-guess)
        next-guess
-       (cube-root-iter next-guess x))))
+       (cube-root next-guess x))))
   ([x]
    (cube-root 1.0 x)))
 
@@ -186,8 +189,6 @@
 ; $p'=(p^2+q^2)$
 ; $q'=(2pq+q^2)$ 
 
-(defn fib [n]
-  (fib-iter 1 0 0 1 n))
 
 (defn fib-iter
   [a b p q counts]
@@ -210,3 +211,133 @@
                 q
                 (- counts 1))
         ))
+
+
+;;; 1.20
+; normal order 要先展开后eval， 7*2 + 4
+; applicative-order 边展开边eval， 4次即可
+;(gcd 206 40) 
+ 
+;(gcd 40 (remainder 206 40)) 
+ 
+;(gcd 40 6) 
+ 
+;(gcd 6 (remainder 40 6)) 
+ 
+;(gcd 6 4) 
+ 
+;(gcd 4 (remainder 6 4)) 
+ 
+;(gcd 4 2) 
+ 
+;(gcd 2 (remainder 4 2)) 
+ 
+;(gcd 2 0) 
+ 
+;2 
+
+
+;;; 1.21
+(defn smallest-divisor 
+  [n]
+  (letfn [(divides? 
+            [a b]
+            (= (rem a b) 0))
+          (find-divisor 
+            [n test-divisor]
+            (cond (> (square test-divisor) n) n
+                  (divides? n test-divisor) test-divisor
+                  :else (find-divisor n (inc test-divisor))))]
+    (find-divisor n 2)))
+
+(smallest-divisor 199)  ; 199
+(smallest-divisor 1999)  ; 1999
+(smallest-divisor 19999)  ; 7
+
+;;; 1.22
+; 需要注意的是，smallest-divisor的方法在
+; 数很大的时候会出现StackOverflow的错误
+
+(defn prime? 
+  [n]
+  (= (smallest-divisor n) n))))
+
+(defn start-prime-test 
+  [n start-time]
+  (if (prime? n)
+    (do 
+      (time (prime? n))
+      (prn " *** ")
+      (prn n)
+      n)
+    ))
+
+(defn search-for-primes 
+  [a b]
+  (let [a (if (even? a) (inc a) a)
+        b (if (even? b) (dec b) b)
+        search-iter 
+        (fn search-iter [cur lst]
+          (if (< cur lst)
+            (do
+              (start-prime-test cur (c/to-long (t/now)))
+              (search-iter (+ 2 cur) lst))))]
+    (search-iter a b)))
+
+
+;;; 1.23
+(defn next-n
+  [test-divisor]
+  (if (= test-divisor 2)
+    3
+    (+ 2 test-divisor)))
+
+
+;;; 1.24
+; 显然，2倍的时间
+
+
+;;; 1.25
+; 注释46有解释，这样可以避免对一个很大的数求余
+
+
+;;; 1.26
+; 这会导致树形展开，计算量cheng呈指数增长
+
+
+;;; 1.27
+
+(defn expmod
+  [base exp m]
+  (cond (= exp 0) 1
+        (even? exp)
+        (rem (square (expmod base (/ exp 2) m))
+             m)
+        :else 
+        (rem (* base (expmod base (dec exp) m))
+             m)))
+
+(defn fermat-check?
+  [x n]
+  (= (expmod x n n) x))
+
+(defn cheat-fermat-test?
+  [n]
+  (= 
+    ; 测试某个数符合费马小定理
+    (true? 
+       (every? true? (map fermat-check? (range 1 n) (repeat n))))
+    ; 同时这个数并不是素数
+     (false?
+       (prime? n))) )
+
+; (map cheat-fermat-test? [561 1105 1729 2465 2821 6601])
+
+
+;;; 1.28
+
+; 这个有点复杂，没理解怎么不会受骗的。。。
+; 具体代码看这里吧 
+; https://github.com/gregsexton/SICP-Clojure/blob/master/src/sicp/ch1.clj#L176-L201
+
+
