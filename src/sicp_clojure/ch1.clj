@@ -1,6 +1,5 @@
 (ns sicp-clojure.ch1
-  (:require [clojure.math.numeric-tower :as math]
-            [clj-time.core :as t]
+  (:require [clj-time.core :as t]
             [clj-time.coerce :as c]
             ))
 
@@ -64,7 +63,7 @@
          (double (/ (+ (/ x (* guess guess)) (* 2 guess)) 3))
          good-enough? 
          (fn [guess next-guess]
-           (< (/ (math/abs (- guess next-guess)) guess)
+           (< (/ (Math/abs (- guess next-guess)) guess)
               0.001))]
      (if (good-enough? guess next-guess)
        next-guess
@@ -214,6 +213,12 @@
 
 
 ;;; 1.20
+(defn gcd
+  [a b]
+  (if (= b 0)
+    a
+    (gcd b (rem a b))))
+
 ; normal order 要先展开后eval， 7*2 + 4
 ; applicative-order 边展开边eval， 4次即可
 ;(gcd 206 40) 
@@ -341,3 +346,248 @@
 ; https://github.com/gregsexton/SICP-Clojure/blob/master/src/sicp/ch1.clj#L176-L201
 
 
+;;; 1.29
+(defn sum
+  "
+  累加求和
+  * term: a到b之间每个值的映射函数
+  * a: 起始点
+  * nxt: 通项公式
+  * b: 终点 
+  "
+  [term a nxt b]
+  (if (> a b)
+    0
+    (+ (term a)
+       (sum term (nxt a) nxt b))))
+
+(defn integral
+  "求定积分"
+  [f a b dx]
+  (letfn [(add-dx [x] (+ x dx))]
+    (* (sum f (+ a (/ dx 2.0)) add-dx b)
+      dx)))
+
+(defn simpson-integral
+  "
+  [辛普森求定积分方法](https://en.wikipedia.org/wiki/Simpson%27s_rule)
+  "
+  [f a b n]
+  (let [h (double (/ (- b a) n))
+        x-j (fn [j] (+ a (* h j)))
+        term (fn [j]
+               (+ (f (x-j (- (* 2 j) 2)))
+                  (* 4 (f (x-j (- (* 2 j) 1))))
+                  (f (x-j (* 2 j)))))]
+    (/ (* (sum term 1 inc (/ n 2))
+          h)
+       3)))
+
+
+;;; 1.30
+(defn sum-iter
+  [term a nxt b]
+  (letfn [(iter [a result]
+            (if (> a b)
+              result
+              (iter (nxt a) (+ result (term a)))))]
+    (iter a 0)))
+
+
+;;; 1.31
+(defn product
+  [term a nxt b]
+  (if (> a b)
+    1
+    (* (term a)
+       (product term (nxt a) nxt b))))
+
+(defn product-iter
+  [term a nxt b]
+  (letfn [(iter [a result]
+            (if (> a b)
+              result
+              (iter (nxt a) (* result (term a)))))]
+    (iter a 1)))
+
+(defn calculate-pi
+  "n 越大，计算结果越接近pi"
+  [n]
+  (letfn [(term [i]
+            (double
+              (/ (* 2 i 2 (inc i))
+                 (square (inc (* i 2))))))]
+    (* 4 (product-iter term 1 inc n))))
+
+
+;;; 1.32
+; 这个根据题目的要求来的，写得有点啰嗦
+(defn accumulate-rec
+  ;; TODO 这个有点问题，总是会出现StackOverflow,
+  ;; 明天再想想
+  [combiner null-value term a nxt b]
+  (if (> a b)
+    null-value
+    (combiner (term a)
+              (accumulate-rec 
+                combiner null-value term a nxt b))))
+
+(defn accumulate-iter
+  [combiner null-value term a nxt b]
+  (letfn [(iter [a result]
+            (if (> a b)
+              result
+              (iter (nxt a) (combiner result (term a)))))]
+    (iter a null-value)))
+
+(def sum-combiner
+  (partial accumulate-iter + 0))
+
+(def product-combiner
+  (partial accumulate-iter * 1.0))
+
+
+;;; 1.33
+(defn filtered-accumulate
+  [filt combiner null-value term a nxt b]
+  (letfn [(find-nxt [x]
+            (when (<= x b)
+              (if (filt x)
+                x
+                (find-nxt (nxt x)))))
+          (iter [a result]
+            (let [x (find-nxt a)]
+              (if x
+                (iter (nxt x) (combiner result (term x)))
+                result
+                )))]
+  (iter a null-value)))
+
+(def sum-primes
+  (partial filtered-accumulate prime? + 0))
+
+(defn gcds-product
+  [n]
+  (filtered-accumulate #(= (gcd % n) 1) * 1 identity 1 inc n))
+
+
+;;; 1.34
+
+(defn f
+  [g]
+  (g 2))
+
+;; (f f) 会导致 ClassCastException，原因显而易见
+
+
+;;; 1.35
+(def tolerance 0.00001)
+
+(defn fixed-point
+  [f first-guess]
+  (letfn [(close-enough? [v1 v2]
+            (< (Math/abs (- v1 v2)) tolerance))
+          (attempt [guess]
+            (let [nxt (f guess)]
+              (if (close-enough? guess nxt)
+                nxt
+                (attempt nxt))))]
+    (attempt first-guess)))
+
+(def golden-ratio (fixed-point #(+ 1 (double (/ 1 %))) 1))
+
+
+;;; 1.36
+(defn fixed-point-prn
+  [f first-guess]
+  (letfn [(close-enough? [v1 v2]
+            (< (Math/abs (- v1 v2)) tolerance))
+          (attempt [guess]
+            (let [nxt (f guess)]
+              (if (close-enough? guess nxt)
+                nxt
+                (do
+                  (prn guess)
+                  (attempt nxt)))))]
+    (attempt first-guess)))
+
+(defn average [a b] (/ (+ a b) 2))
+
+;; 只需要8次收敛
+(def root-1000-avg-damping
+  (let [log-1000 (Math/log 1000)] 
+    (fixed-point-prn 
+      #(average % (/ log-1000 (Math/log %)))
+      2)))
+
+;; 需要33次收敛
+(def root-1000
+  (let [log-1000 (Math/log 1000)] 
+    (fixed-point-prn 
+      #(/ log-1000 (Math/log %))
+      2)))
+
+
+;;; 1.37
+(defn cont-frac
+  [n d k]
+  (letfn [(iter [n d k r]
+            (if (= k 0)
+              r
+              (iter n
+                    d 
+                    (dec k)
+                    (/ (n k)
+                       (+ (d k) r)))))]
+    (iter n d k 0.0)))
+
+(defn const-1 [x] 1.0)
+
+(def get-golden-ratio (partial cont-frac const-1 const-1))
+
+(->> (iterate inc 1)
+    (map get-golden-ratio)
+    (keep-indexed #(when (< (Math/abs (- (/ 1 golden-ratio) %2))
+                          0.0001)
+                     %1))
+    (first)
+    (prn "the smallest k to get golden ratio
+          with precision of 0.0001:"))
+
+(defn cont-frac-rec
+  [n d k]
+  (letfn [(f [n d k-cur]
+            (if (< k-cur k)
+              (/ (n k-cur)
+                 (+ (d k-cur)
+                    (f n d (inc k-cur))))
+              (/ (n k-cur)
+                 (d k-cur))))]
+    (f n d 1)))
+
+
+;;; 1.38
+(def e-approx
+  (+ 2
+     (cont-frac const-1
+                #(let [r (rem % 3)
+                       q (quot % 3)]
+                   (cond (= r 0) 1.0
+                         (= r 1) 1.0
+                         (= r 2) (* 2 (inc q))))
+                1000)))
+
+
+;;; 1.39
+(defn tan-cf
+  [x k]
+  (letfn [(iter [x k r]
+            (if (= k 0)
+              r
+              (iter
+                x
+                (dec k)
+                (/ (Math/pow x k)
+                   (- (dec (* 2 k))
+                      r)))))]
+    (iter x k 0)))
