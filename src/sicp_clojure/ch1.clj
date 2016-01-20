@@ -265,7 +265,7 @@
 
 (defn prime? 
   [n]
-  (= (smallest-divisor n) n))))
+  (= (smallest-divisor n) n))
 
 (defn start-prime-test 
   [n start-time]
@@ -591,3 +591,107 @@
                    (- (dec (* 2 k))
                       r)))))]
     (iter x k 0)))
+
+
+;;; 1.40
+(def dx 0.00001)
+
+(defn deriv [g]
+  (fn [x]
+    (/ (- (g (+ x dx)) 
+          (g x))
+       dx)))
+
+(defn newton-transform [g]
+  (fn [x]
+    (- x
+       (/ (g x) 
+          ((deriv g) x)))))
+
+(defn newtons-method [g guess]
+  (fixed-point (newton-transform g) guess))
+
+(defn cubic [a b c]
+  (fn [x]
+    (+ (* x x x)
+       (* a x x)
+       (* b x)
+       c)))
+
+(< ((cubic 1 2 3)
+    (newtons-method (cubic 1 2 3) 1.0))
+   0.00001)
+
+
+;;; 1.41
+(defn double-custom
+  [f]
+  (fn [x] (f (f x))))
+
+;; 这个好复杂啊，我已晕。。。
+(((double-custom (double-custom double-custom)) inc) 5)
+
+
+;;; 1.42
+(defn compose
+  [f g]
+  (fn [x]
+    (f (g x))))
+
+(= ((compose square inc) 6) 49)
+
+
+;;; 1.43
+(defn repeated [f n]
+  (if (= n 1) f
+      (compose f (repeated f (dec n)))))
+
+((repeated square 2) 5)
+
+
+;;; 1.44
+(defn smooth
+  [f]
+  (fn [x]
+    (/ (+ (f (- x dx))
+          (f x)
+          (f (+ x dx)))
+       3)))
+
+(defn smooth-ntimes
+  [f n]
+  (repeated (smooth f) n))
+
+
+;;; 1.45
+(defn get-max-pow [n] 
+  (letfn [(iter [p r]
+            (if (< (- n r) 0) 
+              (- p 1) 
+              (iter (+ p 1) (* r 2)))
+            )]  
+    (iter 1 2))) 
+
+(defn average-damp
+  [f]
+  (fn [x]
+    (average x (f x))))
+
+(defn n-root
+  [n x]
+  (fixed-point-prn ((repeated average-damp (get-max-pow n))
+                    #(/ x (Math/pow % (dec n))))
+                   1.0))
+
+(n-root 8 256)
+;; TODO 这里平均阻尼的意义是啥不是很清楚
+;; 我猜大概是起到了近似降维的作用
+;; 所以需要log (n)次平均阻尼
+
+;;; 1.46
+(defn iterative-improve [good-enough? improve]
+  ;; 这里用loop recur 是因为匿名函数的原因
+  (fn [guess]
+    (loop [guess guess]
+      (if (good-enough? guess) guess
+          (recur (improve guess))))))
